@@ -232,6 +232,12 @@ export class GeminiAgent extends EventEmitter {
 
     this.client.on("turn_complete", () => {
       console.info(`${this.name}: Model finished speaking turn.`);
+
+      // Mark the audio stream as complete and flush any remaining audio
+      if (this.audioStreamer && !this.audioStreamer.isDisposed) {
+        this.audioStreamer.markStreamComplete();
+      }
+
       this.emit("turn_complete");
     });
 
@@ -276,9 +282,27 @@ export class GeminiAgent extends EventEmitter {
       console.info(`${this.name}: Handling tool call: ${functionCall.name}`, {
         args: functionCall.args,
       });
+
+      // Emit tool call started event for tracking
+      console.log(`[Agent] Emitting tool_call_started for ${functionCall.name} with ID: ${functionCall.id}`);
+      this.emit("tool_call_started", {
+        name: functionCall.name,
+        id: functionCall.id,
+        args: functionCall.args
+      });
+
       // <<< PASS USER CONTEXT TO THE TOOL MANAGER >>>
       const response = await this.toolManager.handleToolCall(functionCall, this.user);
       responses.push(response);
+
+      // Emit tool call completed event for tracking
+      console.log(`[Agent] Emitting tool_call_completed for ${functionCall.name} with ID: ${functionCall.id}, success: ${!response.error}`);
+      this.emit("tool_call_completed", {
+        name: functionCall.name,
+        id: functionCall.id,
+        success: !response.error,
+        error: response.error
+      });
     }
 
     if (this.client && this.connected) {

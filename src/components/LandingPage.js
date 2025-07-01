@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import {
+    Link,
+    useNavigate
+} from "react-router-dom";
 import {
     FaAtom,
     FaSignInAlt,
@@ -14,7 +17,7 @@ import {
     FaQuoteRight,
     FaRegSmile,
     FaBrain,
-    // --- New icons for the enhanced footer ---
+    FaChartLine,
     FaTwitter,
     FaLinkedin,
     FaGithub,
@@ -27,7 +30,7 @@ const THEME_DARK = "dark";
 const THEME_LIGHT = "light";
 
 const LandingPage = () => {
-    const [isDarkMode, setIsDarkMode] = useState(true);
+    const [isDarkMode, setIsDarkMode] = useState(false);
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -36,11 +39,8 @@ const LandingPage = () => {
             "data-theme",
             isDarkMode ? THEME_DARK : THEME_LIGHT,
         );
+        document.body.className = isDarkMode ? 'dark-mode' : 'light-mode';
     }, [isDarkMode]);
-
-    // const toggleTheme = () => { // If you want a theme toggle in the footer too
-    //     setIsDarkMode(!isDarkMode);
-    // };
 
     return (
         <div className={`landing-page ${isDarkMode ? "dark-mode" : "light-mode"}`}>
@@ -48,7 +48,6 @@ const LandingPage = () => {
                 <div className="logo-title">
                     <FaAtom
                         size={40}
-                        style={{ color: "var(--accent-primary)", marginRight: "10px" }}
                         aria-hidden="true"
                     />
                     <h1>Project Theta</h1>
@@ -109,27 +108,83 @@ const LandingPage = () => {
                         </div>
                     </div>
                     <div className="hero-image-placeholder">
-                        <div className="hero-visual-elements">
-                            <FaBrain
-                                size={70}
-                                className="hero-bg-icon icon-brain"
-                                style={{ animationDelay: "0s" }}
-                                aria-hidden="true"
-                            />
-                            <FaUsers
-                                size={60}
-                                className="hero-bg-icon icon-users"
-                                style={{ animationDelay: "0.3s" }}
-                                aria-hidden="true"
-                            />
-                            <FaCog
-                                size={90}
-                                className="hero-bg-icon icon-cog"
-                                style={{ animationDelay: "0.6s" }}
-                                aria-hidden="true"
-                            />
+                        <div className="ai-network-visualization">
+                            {/* Central AI Hub */}
+                            <div className="ai-hub">
+                                <div className="hub-core">
+                                    <FaBrain size={24} />
+                                </div>
+                                <div className="hub-pulse"></div>
+                            </div>
+
+                            {/* Connected Nodes */}
+                            <div className="network-node node-1">
+                                <FaUsers size={16} />
+                                <div className="node-pulse"></div>
+                            </div>
+                            <div className="network-node node-2">
+                                <FaCog size={16} />
+                                <div className="node-pulse"></div>
+                            </div>
+                            <div className="network-node node-3">
+                                <FaRocket size={16} />
+                                <div className="node-pulse"></div>
+                            </div>
+                            <div className="network-node node-4">
+                                <FaChartLine size={16} />
+                                <div className="node-pulse"></div>
+                            </div>
+
+                            {/* Animated Connections */}
+                            <svg className="connection-lines" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet">
+                                <defs>
+                                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0" />
+                                        <stop offset="50%" stopColor="var(--accent-primary)" stopOpacity="0.8" />
+                                        <stop offset="100%" stopColor="var(--accent-secondary)" stopOpacity="0" />
+                                    </linearGradient>
+                                </defs>
+
+                                <path id="path1" className="connection-path path-1" d="M200,150 L110,80" stroke="url(#lineGradient)" strokeWidth="2" fill="none" />
+                                <path id="path2" className="connection-path path-2" d="M200,150 L290,80" stroke="url(#lineGradient)" strokeWidth="2" fill="none" />
+                                <path id="path3" className="connection-path path-3" d="M200,150 L110,220" stroke="url(#lineGradient)" strokeWidth="2" fill="none" />
+                                <path id="path4" className="connection-path path-4" d="M200,150 L290,220" stroke="url(#lineGradient)" strokeWidth="2" fill="none" />
+
+                                {/* Data Flow Particles */}
+                                <circle className="data-particle particle-1" r="2" fill="var(--accent-primary)" opacity="0.8">
+                                    <animateMotion dur="3s" repeatCount="indefinite">
+                                        <mpath href="#path1" />
+                                    </animateMotion>
+                                </circle>
+                                <circle className="data-particle particle-2" r="2" fill="var(--accent-secondary)" opacity="0.8">
+                                    <animateMotion dur="2.5s" repeatCount="indefinite">
+                                        <mpath href="#path2" />
+                                    </animateMotion>
+                                </circle>
+                                <circle className="data-particle particle-3" r="2" fill="var(--accent-primary)" opacity="0.6">
+                                    <animateMotion dur="3.5s" repeatCount="indefinite">
+                                        <mpath href="#path3" />
+                                    </animateMotion>
+                                </circle>
+                                <circle className="data-particle particle-4" r="2" fill="var(--accent-secondary)" opacity="0.6">
+                                    <animateMotion dur="2.8s" repeatCount="indefinite">
+                                        <mpath href="#path4" />
+                                    </animateMotion>
+                                </circle>
+                            </svg>
+
+                            {/* Floating Data Elements */}
+                            <div className="data-stream stream-1">
+                                <div className="data-bit"></div>
+                                <div className="data-bit"></div>
+                                <div className="data-bit"></div>
+                            </div>
+                            <div className="data-stream stream-2">
+                                <div className="data-bit"></div>
+                                <div className="data-bit"></div>
+                            </div>
                         </div>
-                        <p className="hero-preview-text">AI-Powered Synergy in Action</p>
+                        <p className="hero-preview-text">Intelligent Collaboration Network</p>
                     </div>
                 </section>
 
@@ -353,10 +408,6 @@ const LandingPage = () => {
                             <div className="footer-logo">
                                 <FaAtom
                                     size={30}
-                                    style={{
-                                        color: "var(--accent-primary)",
-                                        marginRight: "10px",
-                                    }}
                                     aria-hidden="true"
                                 />
                                 <h3>Project Theta</h3>
@@ -382,7 +433,6 @@ const LandingPage = () => {
                                 <li>
                                     <a href="#testimonials">Testimonials</a>
                                 </li>
-                                {/* <li><Link to="/blog">Blog</Link></li> You can add more links like a blog or FAQ */}
                             </ul>
                         </div>
 
@@ -395,7 +445,6 @@ const LandingPage = () => {
                                 <li>
                                     <Link to="/terms-of-service">Terms of Service</Link>
                                 </li>
-                                {/* <li><Link to="/cookie-policy">Cookie Policy</Link></li> */}
                             </ul>
                         </div>
 
@@ -425,22 +474,13 @@ const LandingPage = () => {
                                 >
                                     <FaLinkedin size={22} />
                                 </a>
-                                <br />
                                 <a
-                                    href="https://twitter.com/YourProjectTheta"
+                                    href="https://github.com/your-repo"
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    aria-label="Follow Project Theta on Twitter"
+                                    aria-label="Project Theta on GitHub"
                                 >
-                                    <FaTwitter size={22} />
-                                </a>
-                                <a
-                                    href="https://linkedin.com/company/YourProjectTheta"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    aria-label="Follow Project Theta on LinkedIn"
-                                >
-                                    <FaLinkedin size={22} />
+                                    <FaGithub size={22} />
                                 </a>
                             </div>
                         </div>
@@ -449,10 +489,6 @@ const LandingPage = () => {
                     <div className="footer-secondary">
                         <div className="footer-credits">
                             A project by Karneeshkar & Ashish.
-                            {/* You can make emails clickable if desired, but a general contact is often better for a product.
-                                <a href="mailto:karneeshkar68@gmail.com">Karneeshkar</a> &
-                                <a href="mailto:ashishfounder@email.com">Ashish</a>
-                            */}
                         </div>
                         <p className="footer-copyright">
                             &copy; {new Date().getFullYear()} Project Theta. All Rights

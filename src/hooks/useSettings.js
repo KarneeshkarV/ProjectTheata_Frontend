@@ -49,8 +49,15 @@ export const useSettings = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   // --- Theme State ---
   const [theme, setTheme] = useState(() => {
+    // Check for system preference first if no saved theme
     const savedTheme = localStorage.getItem("theme");
-    return savedTheme === "light" ? "light" : "dark"; // Default to dark
+    if (savedTheme) {
+      return savedTheme === "light" ? "light" : "dark";
+    }
+
+    // Set default explicitly to light and save it
+    localStorage.setItem("theme", "light");
+    return "light";
   });
 
   // Load settings and apply theme from localStorage on initial mount
@@ -96,10 +103,16 @@ export const useSettings = () => {
     }
 
     // Apply initial theme class
+    document.documentElement.setAttribute("data-theme", theme);
+    document.body.className = theme === "light" ? "theme-light" : "";
+    
+    // Also set a class on html element for extra safety
     if (theme === "light") {
       document.body.classList.add("theme-light");
+      document.documentElement.classList.add("theme-light");
     } else {
       document.body.classList.remove("theme-light");
+      document.documentElement.classList.remove("theme-light");
     }
   }, []); // Empty dependency array runs only on mount
 
@@ -146,7 +159,7 @@ export const useSettings = () => {
         user?.user_metadata?.name ||
         user?.email;
       const baseInstructions =
-        "You are a helpful assistant named Theta. ";
+        "You are a helpful assistant named Theta. When you use any tool (Google search, Wolfram Alpha, RAG queries, etc.), always process and summarize the information you receive. Never display raw tool outputs, JSON data, or technical details to the user. Instead, extract the relevant information and provide a clear, natural response that directly answers the user's question. For search results, summarize the key findings rather than listing URLs or raw snippets.";
       
       const userPrefix = userName
         ? `The user you are speaking with is logged in as ${userName}. `

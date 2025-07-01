@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { TfiReload } from "react-icons/tfi";
 import {
   FaLink,
   FaUnlink,
@@ -11,11 +12,16 @@ import {
   FaSyncAlt,
   FaExclamationTriangle,
   FaSpinner,
+  FaCheckCircle,
+  FaCog,
+  FaUser,
+  FaRobot,
+  FaGoogle,
 } from "react-icons/fa";
 import { IoIosAddCircle } from "react-icons/io";
-import AudioVisualizerComponent from "./AudioVisualizerComponent";
 import ScreenAnnotationWrapper from "./ScreenAnnotationWrapper";
 import { useGeminiAgent } from "../hooks/useGeminiAgent";
+import { useToolCallTracking } from "../hooks/useToolCallTracking";
 import ChatService from "../services/chatService";
 import { fileToBase64 } from "../lib/utils/utils";
 
@@ -76,6 +82,8 @@ const ChatView = ({
   const [cameraError, setCameraError] = useState(null);
   const [screenError, setScreenError] = useState(null);
   const [hasBeenConnectedBefore, setHasBeenConnectedBefore] = useState(false);
+  const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
+  const [inputText, setInputText] = useState("");
 
   const displayMicActive = isMicActive && !isMicSuspended;
   const canInteract = session && isConnected && !isInitializing;
@@ -142,17 +150,182 @@ const ChatView = ({
     if (onConnectionChange) {
       onConnectionChange(isConnected);
     }
-  }, [isConnected, onConnectionChange]);
+
+    // Update hasBeenConnectedBefore when agent connects for the first time
+    if (isConnected && !hasBeenConnectedBefore) {
+      setHasBeenConnectedBefore(true);
+    }
+  }, [isConnected, onConnectionChange, hasBeenConnectedBefore]);
 
   const addMessage = useCallback((sender, text, isStreaming = false, type = "text") => {
+    const messageId = Date.now() + Math.random();
     setMessages((prev) => {
-      const newMessage = { id: Date.now() + Math.random(), sender, text, isStreaming, type };
+      const newMessage = { id: messageId, sender, text, isStreaming, type };
       if (sender === "model" && isStreaming) {
         streamingMessageRef.current = newMessage.id;
       }
       const filteredPrev = prev.filter(msg => !(msg.type === "audio_input_placeholder" && sender === "model"));
       return [...filteredPrev, newMessage];
     });
+    return messageId; // Return the message ID
+  }, []);
+
+  const updateMessage = useCallback((messageId, updates) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, ...updates } : msg
+      )
+    );
+  }, []);
+
+  // Track tool calls and show them as chat messages
+  useToolCallTracking(agent, addMessage, updateMessage);
+
+  // Component for enhanced chat bubble with circular icon and user name
+  const ChatBubble = useCallback(({ message, user, isAgentSpeaking }) => {
+    const isUser = message.sender === "user";
+    const isModel = message.sender === "model";
+    const isSystem = message.sender === "system";
+
+    // Don't render enhanced bubble for tool call messages
+    if (message.type && message.type.startsWith("tool_call")) {
+      return null;
+    }
+
+    const getUserName = () => {
+      if (isUser && user?.user_metadata?.full_name) {
+        return user.user_metadata.full_name;
+      }
+      if (isUser && user?.email) {
+        return user.email.split('@')[0];
+      }
+      if (isUser) return "You";
+      if (isModel) return "Theta";
+      return "System";
+    };
+
+    const getIcon = () => {
+      if (isUser) {
+        // Use user's Google profile picture if available, fallback to FaUser icon
+        const profileImageUrl = user?.user_metadata?.avatar_url;
+        if (profileImageUrl) {
+          return (
+            <img
+              src={profileImageUrl}
+              alt="User profile"
+              className="chat-bubble-profile-img"
+            />
+          );
+        }
+        return <FaUser />;
+      }
+      if (isModel) return <FaRobot />;
+      return <FaCog />;
+    };
+
+    const getIconClass = () => {
+      let baseClass = "chat-bubble-icon";
+      if (isUser) baseClass += " user-icon";
+      if (isModel) baseClass += " model-icon";
+      if (isSystem) baseClass += " system-icon";
+      return baseClass;
+    };
+
+    return (
+      <div className={`chat-bubble ${isUser ? "user-bubble" : isModel ? "model-bubble" : "system-bubble"} ${message.isStreaming ? "streaming" : ""}`}>
+        <div className="chat-bubble-header">
+          <div className={getIconClass()}>
+            {isModel && isAgentSpeaking ? (
+              <div className="speaking-animation">
+                <div className="wave"></div>
+                <div className="wave"></div>
+                <div className="wave"></div>
+              </div>
+            ) : (
+              getIcon()
+            )}
+          </div>
+          <span className="chat-bubble-name">{getUserName()}</span>
+        </div>
+        <div className="chat-bubble-content">
+          {message.text}
+        </div>
+      </div>
+    );
+  }, []);
+
+  // Function to render tool call messages with notification-style design
+  const renderToolCallMessage = useCallback((msg) => {
+    let messageData;
+    try {
+      messageData = JSON.parse(msg.text);
+    } catch (e) {
+      messageData = { toolName: msg.text, status: 'started' };
+    }
+
+    const isStarted = msg.type === "tool_call_started" || messageData.status === 'started';
+    const isSuccess = msg.type === "tool_call_completed_success";
+    const isError = msg.type === "tool_call_completed_error";
+
+    let icon, title, message, bubbleClass;
+
+    // Check if this is a Google search tool call
+    const isGoogleSearch = messageData.toolName && (
+      messageData.toolName.toLowerCase().includes('google') ||
+      messageData.toolName.toLowerCase().includes('search')
+    );
+
+    if (isStarted) {
+      if (isGoogleSearch) {
+        icon = <FaGoogle className="tool-call-icon google-search" />;
+        title = "Google Search";
+        message = `Searching Google...`;
+      } else {
+        icon = <FaSpinner className="tool-call-icon spinning" />;
+        title = "Tool Call Started";
+        message = `Executing ${messageData.toolName}...`;
+      }
+      bubbleClass = "";
+    } else if (isSuccess) {
+      if (isGoogleSearch) {
+        icon = <FaGoogle className="tool-call-icon google-search success" />;
+        title = "Google Search Completed";
+        message = `Google search completed successfully`;
+      } else {
+        icon = <FaCheckCircle className="tool-call-icon success" />;
+        title = "Tool Call Completed";
+        message = `${messageData.toolName} completed successfully`;
+      }
+      bubbleClass = "success";
+    } else if (isError) {
+      if (isGoogleSearch) {
+        icon = <FaGoogle className="tool-call-icon google-search error" />;
+        title = "Google Search Failed";
+        message = `Google search failed: ${messageData.error || 'Unknown error'}`;
+      } else {
+        icon = <FaExclamationTriangle className="tool-call-icon error" />;
+        title = "Tool Call Failed";
+        message = `${messageData.toolName} failed: ${messageData.error || 'Unknown error'}`;
+      }
+      bubbleClass = "error";
+    }
+
+    return (
+      <div key={msg.id} className={`tool-call-notification-bubble ${bubbleClass}`}>
+        <div className="tool-call-content">
+          <div className="tool-call-header">
+            {icon}
+            <span className="tool-call-title">{title}</span>
+          </div>
+          <div className="tool-call-message">
+            {message}
+          </div>
+          <div className="tool-call-tool-name">
+            Tool: {messageData.toolName}
+          </div>
+        </div>
+      </div>
+    );
   }, []);
 
   const addUserAudioPlaceholder = useCallback(() => {
@@ -203,26 +376,32 @@ const ChatView = ({
     if (userTranscriptLockRef.current) {
       return;
     }
-    
+
     userTranscriptLockRef.current = true;
-    
+
     try {
       const currentTranscript = userTranscriptBufferRef.current.trim();
       const hasBeenSent = userTranscriptSentRef.current;
-      
+
       if (currentTranscript && !hasBeenSent) {
-        console.log('Sending user transcript to backend:', currentTranscript);
+        // Remove any audio input placeholder
+        setMessages((prev) => prev.filter((msg) => msg.type !== "audio_input_placeholder"));
+
+        // Add the final user message to chat
+        addMessage("user", currentTranscript, false, "text");
+
+        // Send to backend
         sendTranscriptToBackend('user', currentTranscript);
         userTranscriptSentRef.current = true;
       }
-      
+
       // Clear buffer and reset flags
       userTranscriptBufferRef.current = '';
       userTranscriptSentRef.current = false;
     } finally {
       userTranscriptLockRef.current = false;
     }
-  }, [sendTranscriptToBackend]);
+  }, [sendTranscriptToBackend, addMessage]);
 
   // NEW: Function to start a new user transcript session
   const startNewUserTranscript = useCallback(() => {
@@ -237,6 +416,9 @@ const ChatView = ({
       setTimeout(() => {
         sendAndClearUserBuffer();
       }, 100);
+
+      // Track that agent is speaking when we receive transcription
+      setIsAgentSpeaking(true);
 
       if (!streamingMessageRef.current) {
         agentTextBufferRef.current = transcript;
@@ -255,7 +437,6 @@ const ChatView = ({
         if (transcript.length >= currentBuffer.length) {
           userTranscriptBufferRef.current = transcript;
           userTranscriptSentRef.current = false;
-          console.log('User transcript updated:', transcript);
         }
       }
     };
@@ -266,6 +447,8 @@ const ChatView = ({
       }
       agentTextBufferRef.current = '';
       finalizeStreamingMessageUI();
+      // Stop speaking animation when turn is complete
+      setIsAgentSpeaking(false);
     };
     
     // IMPROVED: Handle interruptions more carefully
@@ -305,10 +488,10 @@ const ChatView = ({
         const lastMsg = prev[prev.length - 1];
         if (lastMsg?.type === "audio_input_placeholder") {
           return prev.map((msg) =>
-            msg.id === lastMsg.id ? { ...msg, text: ` ${transcript}` } : msg,
+            msg.id === lastMsg.id ? { ...msg, text: transcript } : msg,
           );
         } else if (!prev.some((msg) => msg.type === "audio_input_placeholder") && displayMicActive) {
-          return [...prev, { id: "placeholder-" + Date.now(), sender: "user", text: ` ${transcript}`, type: "audio_input_placeholder", isStreaming: false }];
+          return [...prev, { id: "placeholder-" + Date.now(), sender: "user", text: transcript, type: "audio_input_placeholder", isStreaming: false }];
         }
         return prev;
       });
@@ -357,7 +540,6 @@ const ChatView = ({
       setTimeout(() => {
         sendAndClearUserBuffer();
         onInterruptedRef.current?.();
-        setMessages((prev) => prev.filter((msg) => msg.type !== "audio_input_placeholder"));
         sendText(trimmedText);
       }, 100);
     }
@@ -459,33 +641,55 @@ const ChatView = ({
     }
     // If not loading and no history error, always try to render messages.
     // Connect prompts/errors will be handled elsewhere or after this block.
-    return messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`chat-message ${msg.sender === "user" ? "user-message" : "model-message"} type-${msg.type || "text"} ${msg.isStreaming ? "streaming" : ""}`}
-            >
-              {msg.text}
-            </div>
-          ));
+    return messages.map((msg) => {
+      // Check if this is a tool call message
+      if (msg.type && (msg.type === "tool_call_started" || msg.type === "tool_call_completed_success" || msg.type === "tool_call_completed_error")) {
+        return renderToolCallMessage(msg);
+      }
+
+      // Regular message rendering with enhanced chat bubble
+      const chatBubble = (
+        <ChatBubble
+          key={msg.id}
+          message={msg}
+          user={user}
+          isAgentSpeaking={isAgentSpeaking && msg.sender === "model" && msg.isStreaming}
+        />
+      );
+
+      // If ChatBubble returns null (for tool calls), fall back to old rendering
+      if (chatBubble) {
+        return chatBubble;
+      }
+
+      return (
+        <div
+          key={msg.id}
+          className={`chat-message ${msg.sender === "user" ? "user-message" : "model-message"} type-${msg.type || "text"} ${msg.isStreaming ? "streaming" : ""}`}
+        >
+          {msg.text}
+        </div>
+      );
+    });
   };
 
   return (
     <div className="chat-area">
       <div id="chatHistory" ref={chatHistoryRef} className="chat-history">
         {renderChatContent()}
-      </div>
 
-      {/* Prompts for NEW or NEVER-CONNECTED chats */}
-      {!hasBeenConnectedBefore && session && !isConnected && !isInitializing && !agentError && (
-        <div className="connect-prompt-container">
-          <p>Ready to start?</p>
-          <p>Connect to the live agent to begin this conversation.</p>
-          <button onClick={handleConnect} className="connect-prompt-button" disabled={isInitializing}>
-            {isInitializing ? <FaSpinner className="fa-spin" /> : <FaLink />}
-            {isInitializing ? " Connecting..." : " Connect Agent"}
-          </button>
-        </div>
-      )}
+        {/* Prompts for NEW or NEVER-CONNECTED chats - positioned within chat-history for proper centering */}
+        {!hasBeenConnectedBefore && session && !isConnected && !isInitializing && !agentError && messages.length === 0 && (
+          <div className="connect-prompt-container">
+            <p>Ready to start?</p>
+            <p>Connect to the live agent to begin this conversation.</p>
+            <button onClick={handleConnect} className="connect-prompt-button" disabled={isInitializing}>
+              {isInitializing ? <FaSpinner className="fa-spin" /> : <FaLink />}
+              {isInitializing ? " Connecting..." : " Connect Agent"}
+            </button>
+          </div>
+        )}
+      </div>
 
       {!hasBeenConnectedBefore && session && agentError && !isConnected && !isInitializing && (
         <div className="chat-message system-message error-message">
@@ -497,9 +701,7 @@ const ChatView = ({
         </div>
       )}
 
-      {isConnected && agent?.initialized && (
-        <AudioVisualizerComponent agent={agent} />
-      )}
+
 
       {/* Screen Annotation Wrapper - positioned to overlay the screen preview */}
       <ScreenAnnotationWrapper
@@ -509,73 +711,56 @@ const ChatView = ({
 
       {session && (
         <div className="footer-controls-stacked">
-          {/* Reconnect UI for PREVIOUSLY CONNECTED chats */}
-          {hasBeenConnectedBefore && session && !isConnected && !isInitializing && (
-            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-              {agentError ? (
-                <div className="reconnect-error-container">
-                  <p style={{ color: 'var(--error-color, #ff4d4d)', fontSize: '0.9em', marginBottom: '5px' }}>
-                    <FaExclamationTriangle style={{ marginRight: '5px' }} />
-                    Connection failed: {agentError}
-                  </p>
-                  <button 
-                    onClick={handleConnect} 
-                    className="reconnect-button-small" 
-                    title="Retry Connect" 
-                    disabled={isInitializing}
-                  >
-                    {isInitializing ? <FaSpinner className="fa-spin" style={{ marginRight: '5px' }} /> : <FaSyncAlt style={{ marginRight: '5px' }} />}
-                    {isInitializing ? " Connecting..." : " Retry"}
-                  </button>
-                </div>
-              ) : (
-                <button 
-                  onClick={handleConnect} 
-                  className="reconnect-button-small" 
-                  title="Reconnect to agent" 
-                  disabled={isInitializing}
-                >
-                  {isInitializing ? <FaSpinner className="fa-spin" style={{ marginRight: '5px' }} /> : <FaLink style={{ marginRight: '5px' }} />}
-                  {isInitializing ? " Connecting..." : " Reconnect"}
-                </button>
-              )}
+
+          {!isConnected && hasBeenConnectedBefore ? (
+            <div className="reconnect-section">
+              <button
+                onClick={handleConnect}
+                className="reconnect-button"
+                title="Reconnect to agent"
+                disabled={isInitializing}
+              >
+                {isInitializing ? <FaSpinner className="fa-spin" style={{ marginRight: '8px' }} /> : <TfiReload style={{ marginRight: '8px' }} />}
+                {isInitializing ? "Connecting..." : "Reconnect"}
+              </button>
             </div>
-          )}
-          <div className="floating-media-controls">
-            {isConnected && (
+          ) : null}
+
+          {isConnected && (
+            <div className="floating-media-controls">
               <button onClick={handleDisconnect} className="control-btn error" title="Disconnect Agent Session">
                 <FaUnlink />
                 <span className="button-text">Disconnect</span>
               </button>
-            )}
-            <button
-              onClick={handleToggleMic}
-              className={`control-btn mic-btn ${displayMicActive ? "active" : ""} ${isMicSuspended && isMicActive ? "suspended" : ""}`}
-              disabled={!canInteract}
-              title={(displayMicActive ? "Mute" : "Unmute") + (isMicSuspended ? " (Suspended)" : "")}
-            >
-              {displayMicActive ? <FaMicrophone /> : <FaMicrophoneSlash />}
-              <span className="button-text">Mic</span>
-            </button>
-            <button
-              onClick={handleToggleCamera}
-              className={`control-btn cam-btn ${isCameraActive ? "active" : ""} ${cameraError ? "error" : ""}`}
-              disabled={!canInteract}
-              title={cameraError ? `Camera Error: ${cameraError}` : isCameraActive ? "Stop Camera" : "Start Camera"}
-            >
-              {isCameraActive ? <FaVideo /> : <FaVideoSlash />}
-              <span className="button-text">Cam</span>
-            </button>
-            <button
-              onClick={handleToggleScreenShare}
-              className={`control-btn screen-btn ${isScreenShareActive ? "active" : ""} ${screenError ? "error" : ""}`}
-              disabled={!canInteract}
-              title={screenError ? `Screen Error: ${screenError}` : isScreenShareActive ? "Stop Screen" : "Start Screen"}
-            >
-              <FaDesktop />
-              <span className="button-text">Screen</span>
-            </button>
-          </div>
+              <button
+                onClick={handleToggleMic}
+                className={`control-btn mic-btn ${displayMicActive ? "active" : ""} ${isMicSuspended && isMicActive ? "suspended" : ""}`}
+                disabled={!canInteract}
+                title={(displayMicActive ? "Mute" : "Unmute") + (isMicSuspended ? " (Suspended)" : "")}
+              >
+                {displayMicActive ? <FaMicrophone /> : <FaMicrophoneSlash />}
+                <span className="button-text">Mic</span>
+              </button>
+              <button
+                onClick={handleToggleCamera}
+                className={`control-btn cam-btn ${isCameraActive ? "active" : ""} ${cameraError ? "error" : ""}`}
+                disabled={!canInteract}
+                title={cameraError ? `Camera Error: ${cameraError}` : isCameraActive ? "Stop Camera" : "Start Camera"}
+              >
+                {isCameraActive ? <FaVideo /> : <FaVideoSlash />}
+                <span className="button-text">Camera</span>
+              </button>
+              <button
+                onClick={handleToggleScreenShare}
+                className={`control-btn screen-btn ${isScreenShareActive ? "active" : ""} ${screenError ? "error" : ""}`}
+                disabled={!canInteract}
+                title={screenError ? `Screen Error: ${screenError}` : isScreenShareActive ? "Stop Screen" : "Start Screen"}
+              >
+                <FaDesktop />
+                <span className="button-text">Screen Share</span>
+              </button>
+            </div>
+          )}
           <div className="text-input-container">
             <input
               id="imageInput"

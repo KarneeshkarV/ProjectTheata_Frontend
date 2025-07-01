@@ -5,9 +5,9 @@ import {
   FaEdit,
   FaSpinner,
   FaCommentDots, // Added for collapse button
-  FaBars,    
-  FaAngleDoubleLeft    // Added for collapse button
+  FaBars
 } from "react-icons/fa";
+import { MdChevronLeft } from "react-icons/md";
 import { IoIosAdd } from "react-icons/io";
 import ChatService from "../services/chatService";
 import { useAuth } from "../hooks/useAuth";
@@ -56,7 +56,7 @@ const ChatList = ({ onChatSelect, selectedChatId, onCreateChat, isCollapsed, tog
 
   useEffect(() => {
     loadChats();
-  }, [selectedChatId]); 
+  }, [  selectedChatId]);
 
   const handleDeleteChat = async (idOfChatToDelete, event) => {
     event.stopPropagation();
@@ -193,12 +193,17 @@ const ChatList = ({ onChatSelect, selectedChatId, onCreateChat, isCollapsed, tog
         </div>
 
         <div className="chat-item-footer">
-          <div className="last-message-preview">
-            {chat.last_message ? (
-              <span>{chat.last_message.speaker}: {chat.last_message.text}</span>
-            ) : (
-              <span>No messages yet</span>
-            )}
+          <div className="chat-item-meta">
+            <div className="last-message-preview">
+              {chat.last_message ? (
+                <span>{chat.last_message.speaker}: {chat.last_message.text}</span>
+              ) : (
+                <span>No messages yet</span>
+              )}
+            </div>
+            <div className="chat-model-info">
+              <span>model: {chat.model || 'Okay Peter, H...'}</span>
+            </div>
           </div>
           <div className="last-message-time">
             {formatLastMessageTime(chat.updated_at)}
@@ -219,7 +224,7 @@ const ChatList = ({ onChatSelect, selectedChatId, onCreateChat, isCollapsed, tog
             className="sidebar-toggle-btn" 
             title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
-            {isCollapsed ? <FaBars size={20} /> : <FaAngleDoubleLeft size={24} />}
+            {isCollapsed ? <FaBars size={20} /> : <MdChevronLeft size={24} />}
           </button>
         </div>
 
